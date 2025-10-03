@@ -62,7 +62,7 @@ namespace M_project.Scripts.Weapon
             {
                 if (hit.collider.TryGetComponent(out Health health))
                 {
-                    health.TakeDamage(damage, ownerView.OwnerActorNr);
+                    health.TakeDamage(damage, ownerView.OwnerActorNr,"rifle");
                 }
             }
             _currentAmmo--;

@@ -30,15 +30,14 @@ public abstract class Health : MonoBehaviourPunCallbacks, IPunObservable
         UpdateUI();
     }
 
-    // Викликає той, хто стріляє
-    public void TakeDamage(float damage, int attackerId)
+    // ✅ ВИПРАВЛЕННЯ: Додано параметр weaponType
+    public void TakeDamage(float damage, int attackerId, string weaponType)
     {
-        // ⚡ Важливо: поширюємо всім
-        photonView.RPC(nameof(RPC_TakeDamage), photonView.Owner, damage, attackerId);
+        photonView.RPC(nameof(RPC_TakeDamage), photonView.Owner, damage, attackerId, weaponType);
     }
 
     [PunRPC]
-    public void RPC_TakeDamage(float damage, int attackerId)
+    public void RPC_TakeDamage(float damage, int attackerId, string weaponType)
     {
         health -= damage;
         if (health < 0) health = 0;
@@ -49,16 +48,30 @@ public abstract class Health : MonoBehaviourPunCallbacks, IPunObservable
         if (health <= 0)
         {
             OnDie?.Invoke();
-            Die(attackerId);
+            
+            // ✅ ВИПРАВЛЕННЯ: Викликаємо Die через RPC для всіх
+            photonView.RPC(nameof(RPC_Die), RpcTarget.All, attackerId, weaponType);
         }
     }
 
-    protected virtual void Die(int killerActorId)
+    // ✅ НОВИЙ RPC МЕТОД: Викликається для всіх гравців
+    [PunRPC]
+    protected void RPC_Die(int killerActorId, string weaponType)
     {
-        if (killerActorId != -1 && PhotonNetwork.IsMasterClient)
+        // Викликаємо віртуальний метод для дочірніх класів
+        Die(killerActorId, weaponType);
+    }
+
+    // ✅ ВИПРАВЛЕННЯ: Додано параметр weaponType
+    protected virtual void Die(int killerActorId, string weaponType)
+    {
+        // ✅ Нараховуємо винагороду ТІЛЬКИ РАЗ (тільки на клієнті жертви або хоста)
+        if (photonView.IsMine && killerActorId != -1 && RoundManager.Instance != null)
         {
-            RoundManager.Instance.RewardForKill(killerActorId, "rifle"); // тип зброї, щоб різна винагорода
+            RoundManager.Instance.RewardForKill(killerActorId, weaponType);
         }
+
+        // ✅ Деактивація виконується для ВСІХ (бо викликано через RPC)
         gameObject.SetActive(false);
     }
 
@@ -71,7 +84,6 @@ public abstract class Health : MonoBehaviourPunCallbacks, IPunObservable
             healthText.text = health.ToString("0");
     }
 
-    // Синхронізація на випадок лагів
     public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
     {
         if (stream.IsWriting)

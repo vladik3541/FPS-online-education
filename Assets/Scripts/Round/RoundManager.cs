@@ -73,6 +73,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
                 UpdateScoreUI_RPC(scoreManager.RedWins, scoreManager.BlueWins);
             }
         }
+        
         // Ініціалізуємо дані для всіх гравців, що вже в кімнаті
         foreach (Player player in PhotonNetwork.PlayerList)
         {
@@ -93,7 +94,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
     private void Update()
     {
         uiManager.UpdateTimer(GetRemainingTime()); 
-        playerSpawnManager.Update();// Оновлюємо кеш гравців
+        playerSpawnManager.Update();
         if (!PhotonNetwork.IsMasterClient) return;
 
         switch (currentState)
@@ -116,6 +117,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
                 break;
         }
     }
+    
     [PunRPC]
     private void SetRoundState(RoundState newState, double startTime)
     {
@@ -127,7 +129,10 @@ public class RoundManager : MonoBehaviourPunCallbacks
         if (newState == RoundState.WaitingForPlayers)
         {
             playerSpawnManager.ReviveAllPlayers();
-            if (!playerSpawnManager.LocalPlayerSpawned && PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("team"))
+            
+            if (!playerSpawnManager.LocalPlayerSpawned && 
+                PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("team") &&
+                PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("hasPlayed"))
             {
                 playerSpawnManager.SpawnPlayer(PhotonNetwork.LocalPlayer);
             }
@@ -136,7 +141,6 @@ public class RoundManager : MonoBehaviourPunCallbacks
         {
             playerSpawnManager.ReviveDeadPlayersAndLockMovement();
 
-            // Спавнимо нових гравців, які під’єднались під час Playing
             foreach (Player player in PhotonNetwork.PlayerList)
             {
                 if (player == PhotonNetwork.LocalPlayer)
@@ -144,6 +148,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
                     if (!playerSpawnManager.LocalPlayerSpawned && player.CustomProperties.ContainsKey("team"))
                     {
                         playerSpawnManager.SpawnPlayer(player);
+                        LockMovementForLocalPlayer();
                     }
                 }
             }
@@ -155,6 +160,26 @@ public class RoundManager : MonoBehaviourPunCallbacks
 
         SetRoomProperties(currentState, startTime, scoreManager.RedWins, scoreManager.BlueWins);
     }
+    
+    private void LockMovementForLocalPlayer()
+    {
+        GameObject[] allPlayers = GameObject.FindGameObjectsWithTag("Player");
+        foreach (GameObject playerObj in allPlayers)
+        {
+            PhotonView pv = playerObj.GetComponent<PhotonView>();
+            if (pv != null && pv.IsMine)
+            {
+                var controller = playerObj.GetComponent<FirstPersonController>();
+                if (controller != null)
+                {
+                    controller.CanMove = false;
+                    playerObj.GetComponent<WeaponManager>().CanFire = false;
+                    Debug.Log($"Заблокував рух для локального гравця {playerObj.name}");
+                }
+            }
+        }
+    }
+    
     private void UnlockMovementForAll()
     {
         Debug.Log("Розблоковую рух для всіх гравців");
@@ -172,6 +197,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
             }
         }
     }
+    
     public double GetRemainingTime()
     {
         double elapsed = PhotonNetwork.Time - roundStartTime;
@@ -189,37 +215,41 @@ public class RoundManager : MonoBehaviourPunCallbacks
     {
         scoreManager.AddWin(winningTeam);
 
-        GiveEndRoundMoney(winningTeam); // reward end round
-        //Зберігаємо рахунок у властивостях кімнати
+        GiveEndRoundMoney(winningTeam);
         SetRoomProperties(currentState, PhotonNetwork.Time, scoreManager.RedWins, scoreManager.BlueWins);
-
-        //Оновлюємо UI для всіх
         photonView.RPC(nameof(UpdateScoreUI_RPC), RpcTarget.All, scoreManager.RedWins, scoreManager.BlueWins);
-
-        // Переводимо у стан "кінець раунду"
         photonView.RPC(nameof(SetRoundState), RpcTarget.All, RoundState.RoundEnd, PhotonNetwork.Time);
 
         if (PhotonNetwork.IsMasterClient)
             Invoke(nameof(StartNextRound), endRoundDelay);
     }
+    
     private void GiveEndRoundMoney(int winningTeam)
     {
+        if (!PhotonNetwork.IsMasterClient) return; // Тільки хост нараховує гроші
+
         foreach (var player in PhotonNetwork.PlayerList)
         {
+            // ✅ ВИПРАВЛЕННЯ: Перевірка наявності команди
+            if (!player.CustomProperties.ContainsKey("team")) continue;
+
             int team = (int)player.CustomProperties["team"];
             int currentMoney = player.CustomProperties.ContainsKey("money") ? (int)player.CustomProperties["money"] : 0;
 
             int reward = 0;
 
             if (team == winningTeam) reward = 3250;       // перемога
-            else if (winningTeam == -1) reward = 1500;    // нічия (час закінчився)
+            else if (winningTeam == -1) reward = 1500;    // нічия
             else reward = 1400;                           // поразка
 
             int newMoney = Mathf.Clamp(currentMoney + reward, 0, 16000);
             Hashtable props = new Hashtable { { "money", newMoney } };
             player.SetCustomProperties(props);
+            
+            Debug.Log($"Гравець {player.NickName} отримав {reward}$. Всього: {newMoney}$");
         }
     }
+    
     public void RewardForKill(int actorId, string weaponType)
     {
         int reward = weaponType switch
@@ -241,6 +271,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
             killer.SetCustomProperties(props);
         }
     }
+    
     private void StartNextRound()
     {
         if (scoreManager.RedWins >= roundsToWin || scoreManager.BlueWins >= roundsToWin)
@@ -251,7 +282,6 @@ public class RoundManager : MonoBehaviourPunCallbacks
         playerSpawnManager.LocalPlayerSpawned = false;
         photonView.RPC(nameof(SetRoundState), RpcTarget.All, RoundState.BuyTime, PhotonNetwork.Time);
     }
-    
 
     [PunRPC]
     private void UpdateScoreUI_RPC(int tWins, int ctWins)
@@ -269,23 +299,39 @@ public class RoundManager : MonoBehaviourPunCallbacks
 
             if (targetPlayer == PhotonNetwork.LocalPlayer)
             {
-                // Спавнимо тільки якщо можна
-                if (currentState == RoundState.WaitingForPlayers || currentState == RoundState.BuyTime)
+                if (currentState == RoundState.WaitingForPlayers)
                 {
                     playerSpawnManager.SpawnPlayer(targetPlayer);
+                    Hashtable props = new Hashtable { { "hasPlayed", true } };
+                    targetPlayer.SetCustomProperties(props);
+                }
+                else if (currentState == RoundState.BuyTime)
+                {
+                    playerSpawnManager.SpawnPlayer(targetPlayer);
+                    LockMovementForLocalPlayer();
+                    Hashtable props = new Hashtable { { "hasPlayed", true } };
+                    targetPlayer.SetCustomProperties(props);
                 }
                 else
                 {
                     Debug.Log("Ти приєднався під час гри — чекатимеш до наступного раунду");
-                    playerSpawnManager.LocalPlayerSpawned = false; // він ще не має гравця
+                    playerSpawnManager.LocalPlayerSpawned = false;
                 }
             }
         }
     }
 
-    public override void OnPlayerEnteredRoom(Player newPlayer)
+    // ✅ НОВИЙ МЕТОД: Викликається з UI коли гравець вибирає команду
+    public void TryJoinTeam(int requestedTeam)
     {
-        // Визначаємо команду
+        // Перевіряємо чи гравець вже має команду
+        if (PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("team"))
+        {
+            Debug.Log("Ти вже в команді!");
+            return;
+        }
+
+        // Підраховуємо гравців у командах
         int tCount = 0, ctCount = 0;
         foreach (Player p in PhotonNetwork.PlayerList)
         {
@@ -297,14 +343,71 @@ public class RoundManager : MonoBehaviourPunCallbacks
             }
         }
 
-        int teamIndex = (tCount <= ctCount) ? 0 : 1;
-        Hashtable props = new Hashtable { { "team", teamIndex } };
-        newPlayer.SetCustomProperties(props);
+        int finalTeam = requestedTeam;
 
-        Debug.Log($"Гравець {newPlayer.NickName} приєднався до команди {teamIndex}");
+        // Логіка балансу команд
+        if (requestedTeam == 0) // Хоче в T (червоні)
+        {
+            if (tCount > ctCount) // Якщо T більше
+            {
+                finalTeam = 1; // Примусово в CT
+                Debug.Log("Команда T переповнена, ти потрапив в CT");
+            }
+        }
+        else if (requestedTeam == 1) // Хоче в CT (сині)
+        {
+            if (ctCount > tCount) // Якщо CT більше
+            {
+                finalTeam = 0; // Примусово в T
+                Debug.Log("Команда CT переповнена, ти потрапив в T");
+            }
+        }
 
-        // Якщо це не майстер, він сам собі вирішить коли спавнитись у OnPlayerPropertiesUpdate
+        // Призначаємо команду
+        Hashtable props = new Hashtable { { "team", finalTeam } };
+        PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+
+        Debug.Log($"Приєднався до команди {(finalTeam == 0 ? "T (Red)" : "CT (Blue)")}");
+        
+        // Ховаємо UI вибору команди
+        if (uiManager != null)
+        {
+            uiManager.HideTeamSelectionUI();
+        }
     }
+
+    // ✅ ВИДАЛЕНО: Автоматичне призначення команди
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        Debug.Log($"Гравець {newPlayer.NickName} приєднався до лобі");
+        
+        // Показуємо UI вибору команди ТІЛЬКИ для локального гравця
+        if (newPlayer == PhotonNetwork.LocalPlayer && !newPlayer.CustomProperties.ContainsKey("team"))
+        {
+            if (uiManager != null)
+            {
+                uiManager.ShowTeamSelectionUI();
+            }
+        }
+    }
+    
+    // ✅ ДОПОМІЖНИЙ МЕТОД: Отримати кількість гравців у командах (для UI)
+    public void GetTeamCounts(out int tCount, out int ctCount)
+    {
+        tCount = 0;
+        ctCount = 0;
+        
+        foreach (Player p in PhotonNetwork.PlayerList)
+        {
+            if (p.CustomProperties.ContainsKey("team"))
+            {
+                int team = (int)p.CustomProperties["team"];
+                if (team == 0) tCount++;
+                else if (team == 1) ctCount++;
+            }
+        }
+    }
+    
     private void SetRoomProperties(RoundState state, double startTime, int tWins, int ctWins)
     {
         ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
@@ -314,6 +417,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
         props["ctWins"] = ctWins;
         PhotonNetwork.CurrentRoom.SetCustomProperties(props);
     }
+    
     public override void OnRoomPropertiesUpdate(Hashtable propertiesThatChanged)
     {
         if (propertiesThatChanged.ContainsKey("state"))
@@ -329,12 +433,10 @@ public class RoundManager : MonoBehaviourPunCallbacks
             UpdateScoreUI_RPC(scoreManager.RedWins, scoreManager.BlueWins);
         }
     }
+    
     [PunRPC]
     private void OnPlayerDeathNotification(int actorNumber)
     {
-        // Цей RPC можна використовувати для оновлення UI, показу повідомлень про смерть тощо
         Debug.Log($"Отримано повідомлення про смерть гравця {actorNumber}");
-    
-        // Тут можна додати логіку для оновлення UI смерті
     }
 }

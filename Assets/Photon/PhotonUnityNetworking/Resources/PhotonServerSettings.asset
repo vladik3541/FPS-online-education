@@ -49,6 +49,7 @@ MonoBehaviour:
   - OnPlayerDeathNotification
   - RPC_HidePlayer
   - RPC_PlayMuzzleFlash
+  - RPC_Die
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1
