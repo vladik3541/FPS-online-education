@@ -56,6 +56,8 @@ namespace M_project.Scripts.Weapon
 
         protected virtual void Shoot()
         {
+            if(!ownerView.IsMine)return;
+            
             Vector3 direction = cameraLook.forward;
             RaycastHit hit;
             if (Physics.Raycast(cameraLook.position, direction, out hit, float.MaxValue))

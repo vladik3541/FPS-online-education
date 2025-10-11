@@ -50,6 +50,7 @@ MonoBehaviour:
   - RPC_HidePlayer
   - RPC_PlayMuzzleFlash
   - RPC_Die
+  - RPC_SwitchWeapon
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

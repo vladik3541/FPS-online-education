@@ -4,33 +4,37 @@ using UnityEngine;
 
 public class WeaponManager : MonoBehaviour
 {
-    [SerializeField] private Weapon[] weapons;
+    [SerializeField] private Weapon mainWeapon;
+    [SerializeField] private Weapon pistolWeapon;
+    [SerializeField] private Weapon knife;
+    [SerializeField] private Weapon granade;
+    [SerializeField] private Weapon bomb;
     [SerializeField] private FirstPersonController firstPersonController;
     
     private Weapon _currentWeapon;
     private PhotonView _photonView;
-    public Weapon[] Weapons => weapons;
 
     public bool CanFire { get; set; } = true;
 
     private void Start()
     {
         _photonView = GetComponent<PhotonView>();
-        foreach (var weapon in weapons)
-        {
-            weapon.gameObject.SetActive(false);
-        }
+
+        // Початкова зброя
         if (_photonView.IsMine)
         {
-            _currentWeapon = weapons[0];
+            EquipWeapon(WeaponType.main);
         }
-        
-        SwitchWeapon(0);
+        else
+        {
+            DisableAllWeapons();
+        }
     }
-    void Update()
+
+    private void Update()
     {
         if(!_photonView.IsMine) return;
-        
+
         if(Input.GetKey(KeyCode.Mouse0) && CanFire)
         {
             _currentWeapon.Use(() =>
@@ -38,21 +42,64 @@ public class WeaponManager : MonoBehaviour
                 firstPersonController.PlayerCamera.AddRecoil(_currentWeapon.VerticalRecoil, _currentWeapon.HorizontalRecoil);
             });
         }
-        if(Input.GetKey(KeyCode.Alpha1)) SwitchWeapon(0);
-        if(Input.GetKey(KeyCode.Alpha2)) SwitchWeapon(1);
-        if(Input.GetKey(KeyCode.Alpha3)) SwitchWeapon(2);
-        if(Input.GetKey(KeyCode.R))
+
+        if (Input.GetKeyDown(KeyCode.Alpha1)) SwitchWeapon(WeaponType.main);
+        if (Input.GetKeyDown(KeyCode.Alpha2)) SwitchWeapon(WeaponType.pistol);
+        if (Input.GetKeyDown(KeyCode.Alpha3)) SwitchWeapon(WeaponType.knife);
+        if (Input.GetKeyDown(KeyCode.Alpha4)) SwitchWeapon(WeaponType.granad);
+        if (Input.GetKeyDown(KeyCode.Alpha5)) SwitchWeapon(WeaponType.bomb);
+
+        if (Input.GetKeyDown(KeyCode.R))
         {
             _currentWeapon.Reload();
         }
     }
-    private void SwitchWeapon(int index)
+
+    private void SwitchWeapon(WeaponType type)
     {
-        if (_currentWeapon != null)
+        _photonView.RPC(nameof(RPC_SwitchWeapon), RpcTarget.AllBuffered, (int)type);
+    }
+
+    [PunRPC]
+    private void RPC_SwitchWeapon(int weaponTypeInt)
+    {
+        WeaponType type = (WeaponType)weaponTypeInt;
+        EquipWeapon(type);
+    }
+
+    private void EquipWeapon(WeaponType type)
+    {
+        DisableAllWeapons();
+
+        switch (type)
         {
-            _currentWeapon.gameObject.SetActive(false);
-            _currentWeapon = weapons[index];
-            _currentWeapon.gameObject.SetActive(true);
+            case WeaponType.main:
+                _currentWeapon = mainWeapon;
+                break;
+            case WeaponType.pistol:
+                _currentWeapon = pistolWeapon;
+                break;
+            case WeaponType.knife:
+                _currentWeapon = knife;
+                break;
+            case WeaponType.granad:
+                _currentWeapon = granade;
+                break;
+            case WeaponType.bomb:
+                _currentWeapon = bomb;
+                break;
         }
+
+        if (_currentWeapon != null)
+            _currentWeapon.gameObject.SetActive(true);
+    }
+
+    private void DisableAllWeapons()
+    {
+        if (mainWeapon) mainWeapon.gameObject.SetActive(false);
+        if (pistolWeapon) pistolWeapon.gameObject.SetActive(false);
+        if (knife) knife.gameObject.SetActive(false);
+        if (granade) granade.gameObject.SetActive(false);
+        if (bomb) bomb.gameObject.SetActive(false);
     }
 }
