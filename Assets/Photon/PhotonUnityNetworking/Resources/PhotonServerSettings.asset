@@ -51,6 +51,18 @@ MonoBehaviour:
   - RPC_PlayMuzzleFlash
   - RPC_Die
   - RPC_SwitchWeapon
+  - CancelDefusing_RPC
+  - CancelPlanting_RPC
+  - DefuseBomb_RPC
+  - ExplodeBomb_RPC
+  - PickupBomb_RPC
+  - PlantBomb_RPC
+  - PlaySoundRPC
+  - StartDefusing_RPC
+  - StartPlanting_RPC
+  - UpdateBombCarrier_RPC
+  - GiveBombToInventory_RPC
+  - OnBombPlanted_RPC
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

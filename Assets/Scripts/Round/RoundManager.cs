@@ -20,6 +20,7 @@ public class RoundManager : MonoBehaviourPunCallbacks
     [SerializeField] private PlayerSpawnManager playerSpawnManager;
     [SerializeField] private ScoreManager scoreManager;
     [SerializeField] private UIManager uiManager;
+    [SerializeField] private BombManager bombManager; // ✅ НОВИЙ КОМПОНЕНТ
     
     [Header("Settings")]
     public float timeWaitingForPlayers = 5f;
@@ -44,6 +45,13 @@ public class RoundManager : MonoBehaviourPunCallbacks
         {
             Destroy(gameObject);
         }
+        
+        // ✅ Ініціалізуємо BombManager
+        if (bombManager != null)
+        {
+            bombManager.Initialize();
+        }
+        
         StartRound();
     }
 
@@ -110,10 +118,23 @@ public class RoundManager : MonoBehaviourPunCallbacks
             case RoundState.Playing:
                 if (PhotonNetwork.IsMasterClient)
                 {
-                    playerSpawnManager.CheckTeamsAlive();
+                    // ✅ ЗМІНЕНО: Перевіряємо команди тільки якщо бомба не закладена
+                    if (bombManager.GetBombState() != BombState.Planted && 
+                        bombManager.GetBombState() != BombState.Defusing)
+                    {
+                        playerSpawnManager.CheckTeamsAlive();
+                    }
                 }
+                
+                // ✅ ЗМІНЕНО: CT виграють якщо час вийшов і бомбу не закладено
                 if (GetRemainingTime() <= 0)
-                    EndRound(-1);
+                {
+                    if (bombManager.GetBombState() == BombState.NotPlanted || 
+                        bombManager.GetBombState() == BombState.Planting)
+                    {
+                        EndRound(1); // CT виграють по часу
+                    }
+                }
                 break;
         }
     }
@@ -130,6 +151,12 @@ public class RoundManager : MonoBehaviourPunCallbacks
         {
             playerSpawnManager.ReviveAllPlayers();
             
+            // ✅ Скидаємо бомбу
+            if (bombManager != null)
+            {
+                bombManager.ResetBomb();
+            }
+            
             if (!playerSpawnManager.LocalPlayerSpawned && 
                 PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("team") &&
                 PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("hasPlayed"))
@@ -140,6 +167,12 @@ public class RoundManager : MonoBehaviourPunCallbacks
         else if (newState == RoundState.BuyTime)
         {
             playerSpawnManager.ReviveDeadPlayersAndLockMovement();
+            
+            // ✅ Скидаємо і присвоюємо бомбу
+            if (bombManager != null)
+            {
+                bombManager.ResetBomb();
+            }
 
             foreach (Player player in PhotonNetwork.PlayerList)
             {
@@ -226,11 +259,10 @@ public class RoundManager : MonoBehaviourPunCallbacks
     
     private void GiveEndRoundMoney(int winningTeam)
     {
-        if (!PhotonNetwork.IsMasterClient) return; // Тільки хост нараховує гроші
+        if (!PhotonNetwork.IsMasterClient) return;
 
         foreach (var player in PhotonNetwork.PlayerList)
         {
-            // ✅ ВИПРАВЛЕННЯ: Перевірка наявності команди
             if (!player.CustomProperties.ContainsKey("team")) continue;
 
             int team = (int)player.CustomProperties["team"];
@@ -238,9 +270,9 @@ public class RoundManager : MonoBehaviourPunCallbacks
 
             int reward = 0;
 
-            if (team == winningTeam) reward = 3250;       // перемога
-            else if (winningTeam == -1) reward = 1500;    // нічия
-            else reward = 1400;                           // поразка
+            if (team == winningTeam) reward = 3250;
+            else if (winningTeam == -1) reward = 1500;
+            else reward = 1400;
 
             int newMoney = Mathf.Clamp(currentMoney + reward, 0, 16000);
             Hashtable props = new Hashtable { { "money", newMoney } };
@@ -321,17 +353,14 @@ public class RoundManager : MonoBehaviourPunCallbacks
         }
     }
 
-    // ✅ НОВИЙ МЕТОД: Викликається з UI коли гравець вибирає команду
     public void TryJoinTeam(int requestedTeam)
     {
-        // Перевіряємо чи гравець вже має команду
         if (PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey("team"))
         {
             Debug.Log("Ти вже в команді!");
             return;
         }
 
-        // Підраховуємо гравців у командах
         int tCount = 0, ctCount = 0;
         foreach (Player p in PhotonNetwork.PlayerList)
         {
@@ -345,43 +374,38 @@ public class RoundManager : MonoBehaviourPunCallbacks
 
         int finalTeam = requestedTeam;
 
-        // Логіка балансу команд
-        if (requestedTeam == 0) // Хоче в T (червоні)
+        if (requestedTeam == 0)
         {
-            if (tCount > ctCount) // Якщо T більше
+            if (tCount > ctCount)
             {
-                finalTeam = 1; // Примусово в CT
+                finalTeam = 1;
                 Debug.Log("Команда T переповнена, ти потрапив в CT");
             }
         }
-        else if (requestedTeam == 1) // Хоче в CT (сині)
+        else if (requestedTeam == 1)
         {
-            if (ctCount > tCount) // Якщо CT більше
+            if (ctCount > tCount)
             {
-                finalTeam = 0; // Примусово в T
+                finalTeam = 0;
                 Debug.Log("Команда CT переповнена, ти потрапив в T");
             }
         }
 
-        // Призначаємо команду
         Hashtable props = new Hashtable { { "team", finalTeam } };
         PhotonNetwork.LocalPlayer.SetCustomProperties(props);
 
         Debug.Log($"Приєднався до команди {(finalTeam == 0 ? "T (Red)" : "CT (Blue)")}");
         
-        // Ховаємо UI вибору команди
         if (uiManager != null)
         {
             uiManager.HideTeamSelectionUI();
         }
     }
 
-    // ✅ ВИДАЛЕНО: Автоматичне призначення команди
     public override void OnPlayerEnteredRoom(Player newPlayer)
     {
         Debug.Log($"Гравець {newPlayer.NickName} приєднався до лобі");
         
-        // Показуємо UI вибору команди ТІЛЬКИ для локального гравця
         if (newPlayer == PhotonNetwork.LocalPlayer && !newPlayer.CustomProperties.ContainsKey("team"))
         {
             if (uiManager != null)
@@ -391,7 +415,6 @@ public class RoundManager : MonoBehaviourPunCallbacks
         }
     }
     
-    // ✅ ДОПОМІЖНИЙ МЕТОД: Отримати кількість гравців у командах (для UI)
     public void GetTeamCounts(out int tCount, out int ctCount)
     {
         tCount = 0;
