@@ -1594,6 +1594,7 @@ GameObject:
   - component: {fileID: 1597002261311741879}
   - component: {fileID: -7419894449558956861}
   - component: {fileID: 6598387388031910976}
+  - component: {fileID: 7564405338336818670}
   m_Layer: 8
   m_Name: PlayerRed
   m_TagString: Player
@@ -1834,6 +1835,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moneyText: {fileID: 6968984191846981649}
   startingMoney: 800
+--- !u!114 &7564405338336818670
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7857212847390521786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a40e8ac1bd4cd8a4e8bd9486444740dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  interactKey: 101
+  pickupKey: 102
+  plantHintUI: {fileID: 0}
+  defuseHintUI: {fileID: 0}
+  pickupHintUI: {fileID: 0}
 --- !u!1 &8288008142624756173
 GameObject:
   m_ObjectHideFlags: 0

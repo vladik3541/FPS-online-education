@@ -3960,6 +3960,7 @@ GameObject:
   - component: {fileID: 9188230011544884824}
   - component: {fileID: 1012930204512823739}
   - component: {fileID: 2006454954085961506}
+  - component: {fileID: 5934292464702970859}
   m_Layer: 8
   m_Name: PlayerBlue
   m_TagString: Player
@@ -4200,6 +4201,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moneyText: {fileID: 578188287516512637}
   startingMoney: 800
+--- !u!114 &5934292464702970859
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7618251363595134315}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a40e8ac1bd4cd8a4e8bd9486444740dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  interactKey: 101
+  pickupKey: 102
+  plantHintUI: {fileID: 0}
+  defuseHintUI: {fileID: 0}
+  pickupHintUI: {fileID: 0}
 --- !u!1 &7729135578962114317
 GameObject:
   m_ObjectHideFlags: 0

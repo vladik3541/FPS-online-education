@@ -102,4 +102,21 @@ public class WeaponManager : MonoBehaviour
         if (granade) granade.gameObject.SetActive(false);
         if (bomb) bomb.gameObject.SetActive(false);
     }
+    public void AddBombToSlot()
+    {
+        // Додайте бомбу до інвентаря
+        // Наприклад, якщо у вас є слот для обладнання:
+    
+        // equipmentSlot = BombPrefab;
+        // або
+        // weapons[4] = BombWeapon; // Слот 5 для бомби
+    
+        Debug.Log("Бомба додана до інвентаря");
+    }
+
+    public void RemoveBomb()
+    {
+        // Видаліть бомбу з інвентаря
+        Debug.Log("Бомба видалена з інвентаря");
+    }
 }
