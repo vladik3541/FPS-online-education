@@ -31,6 +31,7 @@ public class PlayerCamera
     
     public void HandleMouseLook()
     {
+        if (Cursor.visible) return;
         Vector2 mouseInput = _inputHandler.GetMouseInput();
         float mouseX = mouseInput.x * _mouseSensitivity * Time.deltaTime;
         float mouseY = mouseInput.y * _mouseSensitivity * Time.deltaTime;
